@@ -1,0 +1,42 @@
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version on runner
+        run: xcodebuild -version && swift --version
+
+      - name: Install xtool
+        run: brew install xtool-org/tap/xtool
+
+      - name: Build unsigned IPA (no signing)
+        run: |
+          cd XiaoYuanDad
+          xtool dev build --ipa </dev/null
+          echo "--- find ipa ---"
+          find . -name "*.ipa" -o -name "*.app" | head -20
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: XiaoYuanDad-unsigned-ipa
+          path: XiaoYuanDad/**/*.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+# 备用方案（若 xtool 在跑者上先要求 Apple ID 登录而失败）：
+#  把工程改成 XcodeGen 描述：brew install xcodegen，写一个 project.yml（target 用
+#  Sources/XiaoYuanDad 里的 Swift 文件 + Resources/index.html，bundleID
+#  com.xiaoyuan.dad.luxury），xcodegen generate 生成 .xcodeproj，再跑：
+#    xcodebuild archive -project XiaoYuanDad.xcodeproj -scheme XiaoYuanDad \
+#      -destination 'generic/platform=iOS' -archivePath build/XiaoYuanDad.xcarchive \
+#      CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+#    mkdir -p Payload && cp -r build/XiaoYuanDad.xcarchive/Products/Applications/*.app Payload/
+#    zip -r XiaoYuanDad-unsigned.ipa Payload
+#  该命令组合在多个真实开源项目里已有成功先例（xcodebuild archive + 三个 NO 签名开关 + Payload 打包）。
